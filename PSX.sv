@@ -53,7 +53,6 @@ module emu
 	output        VGA_F1,
 	output [1:0]  VGA_SL,
 	output        VGA_SCALER, // Force VGA scaler
-	output        VGA_DISABLE, // analog out is off
 
 	input  [11:0] HDMI_WIDTH,
 	input  [11:0] HDMI_HEIGHT,
@@ -110,13 +109,6 @@ module emu
 	//ADC
 	inout   [3:0] ADC_BUS,
 
-	//SD-SPI
-	output        SD_SCK,
-	output        SD_MOSI,
-	input         SD_MISO,
-	output        SD_CS,
-	input         SD_CD,
-
 	//High latency DDR3 RAM interface
 	//Use for non-critical time purposes
 	output        DDRAM_CLK,
@@ -132,30 +124,13 @@ module emu
 
 	//SDRAM interface with lower latency
 	output        SDRAM_CLK,
-	output        SDRAM_CKE,
 	output [12:0] SDRAM_A,
 	output  [1:0] SDRAM_BA,
 	inout  [15:0] SDRAM_DQ,
-	output        SDRAM_DQML,
-	output        SDRAM_DQMH,
 	output        SDRAM_nCS,
 	output        SDRAM_nCAS,
 	output        SDRAM_nRAS,
 	output        SDRAM_nWE,
-
-`ifdef MISTER_DUAL_SDRAM
-	//Secondary SDRAM
-	//Set all output SDRAM_* signals to Z ASAP if SDRAM2_EN is 0
-	input         SDRAM2_EN,
-	output        SDRAM2_CLK,
-	output [12:0] SDRAM2_A,
-	output  [1:0] SDRAM2_BA,
-	inout  [15:0] SDRAM2_DQ,
-	output        SDRAM2_nCS,
-	output        SDRAM2_nCAS,
-	output        SDRAM2_nRAS,
-	output        SDRAM2_nWE,
-`endif
 
 	input         UART_CTS,
 	output        UART_RTS,
@@ -189,17 +164,14 @@ assign LED_POWER = 0;
 assign BUTTONS   = 0;
 assign VGA_SCALER= 0;
 
-assign {SD_SCK, SD_MOSI, SD_CS} = 'Z;
-
-wire [ 3:0] frameindex;
 wire [11:0] DisplayWidth;
 wire [11:0] DisplayHeight;
 wire [ 9:0] DisplayOffsetX;
 wire [ 8:0] DisplayOffsetY;
 
-assign FB_BASE    = status[11] ? 32'h30000000 : {8'h30, frameindex, DisplayOffsetY, DisplayOffsetX, 1'b0};
-assign FB_EN      = (status[14] || video_fbmode);
-assign FB_FORMAT  = (status[10] || video_fb24) ? 5'b00101 : 5'b01100;
+assign FB_BASE    = status[11] ? 32'h30000000 : (32'h30000000 + (DisplayOffsetX * 2) + (DisplayOffsetY * 2048));
+assign FB_EN      = status[14];
+assign FB_FORMAT  = status[10] ? 5'b00101 : 5'b01100;
 assign FB_WIDTH   = status[11] ? 12'd1024 : DisplayWidth;
 assign FB_HEIGHT  = status[11] ? 12'd512  : DisplayHeight;
 assign FB_STRIDE  = 14'd2048;
@@ -342,7 +314,7 @@ wire reset_or = RESET | buttons[1] | status[0] | bios_download | exe_download | 
 // 0         1         2         3          4         5         6            7         8         9
 // 01234567890123456789012345678901 23456789012345678901234567890123 45678901234567890123456789012345
 // 0123456789ABCDEFGHIJKLMNOPQRSTUV 0123456789ABCDEFGHIJKLMNOPQRSTUV 
-//  X XX XXXXXX XXXXXX XXXXX  XX XX XXXXXXXXXXXXXXXXXXXXXXXX  XXX XX XXXXXXXXXXXXXXXXXXXXXXXXXX
+//  X XXXXXXXXX  XXXXXXXXXXX XXX XX XXXXXXXXXXXXXXXXXXXXXXXXXXXXX XX XXXXXXXXXXXXXXX
 
 `include "build_id.v"
 parameter CONF_STR = {
@@ -377,29 +349,28 @@ parameter CONF_STR = {
 	"D8h4O[31],DS Mode,L3+R3+Up/Dn | Click,L1+L2+R1+R2+Up/Dn;",
 	"O[66],Multitap,Off,Port1: 4 x Digital;",
 	"-;",
+	"O[28],FPS Overlay,Off,On;",
+	"O[74],Error Overlay,Off,On;",
+	"O[59],CD Slow Overlay,Off,On;",
+	"h9O[70],CD Overlay,Read,Read+Seek;",
+	"-;",
 
 	"P1,Video & Audio;",
 	"P1-;",
 	"P1O[33:32],Aspect ratio,Original,Full Screen,[ARC1],[ARC2];",
 	"P1O[35:34],Scale,Normal,V-Integer,Narrower HV-Integer,Wider HV-Integer;",
 	"P1-;",
-	"DEP1O[62],Fixed HBlank,On,Off;",
-	"DEP1O[55],Fixed VBlank,Off,On;",
+	"P1O[62],Fixed HBlank,On,Off;",
+	"P1O[55],Fixed VBlank,Off,On;",
 	"d5P1O[4:3],Vertical Crop,Off,On(224/270),On(216/256);",
 	"P1O[67],Horizontal Crop,Off,On;",
+	"P1O[22],Dithering,On,Off;",
 	"P1O[41],Deinterlacing,Weave,Bob;",
 	"P1O[60],Sync 480i for HDMI,Off,On;",
 	"P1O[24],Rotate,Off,On;",
-	"P1-;",
-	"P1O[22],Dithering,On,Off;",
-	"DEP1O[84],Render 24 Bit,Off,On;",
-	"P1O[73],Dither 24 Bit for VGA,Off,On;",
-	"P1-;",
-	"P1O[89],480i to 480p Hack,Off,On;",
 	"P1O[54:53],Widescreen Hack,Off,3:2,5:3,16:9;",
-	"P1O[82:81],Texture Filter,Off,All Polygon,Dithered,Dith+Shaded;",
-	"hDP1O[87:86],Filter Strength,25%,50%,75%,100%;",
-	"hDP1O[83],Filter 2D Detect,Off,On;",
+	"P1O[5],Texture Filter,Off,On;",
+	"P1O[73],Dither 24 Bit for VGA,Off,On;",
 	"P1-;",
 	"d1P1O[44],SPU RAM select,DDR3,SDRAM2;",
 	"P1O[8:7],Stereo Mix,None,25%,50%,100%;",
@@ -411,18 +382,12 @@ parameter CONF_STR = {
 	"P2O[64],Pause when OSD open,On,Off;",
 	"P2-;",
 	"P2-,(U) = unsafe -> can crash;",
-	"P2O[80:79],Turbo(Cheats Off),Off,Low(U),Medium(U),High(U);",
+	"P2O[58],Turbo(Cheats Off),Off,On(U);",
 	"P2O[72],Pause when CD slow,On,Off(U);",
 	"P2O[15],PAL 60Hz Hack,Off,On(U);",
 	"P2O[21],CD Fast Seek,Off,On(U);",
 	"P2O[77:75],CD Speed,Auto,Forced 1X(U),Forced 2X(U),Hack 4X(U),Hack 6X(U),Hack 8X(U);",
 	"P2O[78],Limit Max CD Speed,Off,On(U);",
-	"P2O[85],RAM(Homebrew),2 MByte,8 MByte(U);",
-	"P2-;",
-	"P2O[28],FPS Overlay,Off,On;",
-	"P2O[74],Error Overlay,Off,On;",
-	"P2O[59],CD Slow Overlay,Off,On;",
-	"h9P2O[70],CD Overlay,Read,Read+Seek;",
 	
 	"h3-;",
 	"h3P3,Debug;",
@@ -430,11 +395,14 @@ parameter CONF_STR = {
 	"h3P3O[14],DDR3 Framebuffer,Off,On;",
 	"h3P3O[10],DDR3 FB Color,16,24;",
 	"h3P3O[11],VRAMViewer,Off,On;",
+	"h3P3O[57],Sync Video Out,Off,On;",
+	"h3P3O[56],Sync Video Clock,Off,On;",
 	"h3P3O[30],Sound,On,Off;",
+	"h3P3O[19],RepTimingGPU,Off,On;",
 	"h3P3O[43],RepTimingSPUDMA,Off,On;",
+	"h3P3O[26],DMAinBLOCKs,Off,On;",
 	"h3P3O[27],Textures,On,Off;",
 	"h3P3O[69],LBA Overlay,Off,On;",
-	"h3P3O[88],Fast CD DMA Timing,Off,On;",
 	"h3P3T1,Advance Pause;",
 
 	"-   ;",
@@ -471,7 +439,7 @@ parameter CONF_STR = {
 reg dbg_enabled = 0;
 wire  [1:0] buttons;
 wire [127:0] status;
-wire [15:0] status_menumask = {hack_480p, filter_on, saving_memcard, (bk_pending | saving_memcard), bk_pending, status[59], multitap, biosMod, ~TURBO_MEM, (status[55] && ~hack_480p), (PadPortDS1 | PadPortDS2), dbg_enabled, (PadPortGunCon1 | PadPortGunCon2 | PadPortJustif1 | PadPortJustif2), SDRAM2_EN, 1'b0};
+wire [15:0] status_menumask = {saving_memcard, (bk_pending | saving_memcard), bk_pending, status[59], multitap, biosMod, ~status[58], status[55], (PadPortDS1 | PadPortDS2), dbg_enabled, (PadPortGunCon1 | PadPortGunCon2 | PadPortJustif1 | PadPortJustif2), SDRAM2_EN, 1'b0};
 wire        forced_scandoubler;
 reg  [31:0] sd_lba0 = 0;
 reg  [31:0] sd_lba1;
@@ -522,8 +490,6 @@ wire [15:0] joystick2_rumble;
 wire [15:0] joystick3_rumble;
 wire [15:0] joystick4_rumble;
 wire [32:0] RTC_time;
-
-wire filter_on = (status[82:81] == 2'b00) ? 1'b0 : 1'b1; 
 
 wire [127:0] status_in = {status[127:39],ss_slot,status[36:19], 2'b00, status[16:0]};
 
@@ -597,15 +563,6 @@ assign sd_wr[0] = 0;
 assign sd_wr[1] = 0;
 
 wire [35:0] EXT_BUS;
-wire        heartbeat;
-
-hps_ext hps_ext
-(
-	.clk_sys(clk_1x),
-	.EXT_BUS(EXT_BUS),
-	.heartbeat(heartbeat)
-);
-
 
 //////////////////////////  ROM DETECT  /////////////////////////////////
 
@@ -624,8 +581,8 @@ always @(posedge clk_1x) begin
 	end
 end
 
-localparam EXE_START = 16777216;
-localparam BIOS_START = 8388608;
+localparam EXE_START = 4194304;
+localparam BIOS_START = 2097152;
 
 reg [26:0] ramdownload_wraddr;
 reg [31:0] ramdownload_wrdata;
@@ -666,20 +623,14 @@ wire [1:0] region_out;
 reg        isPal;
 reg biosMod = 0;
 
-reg [31:0] exe_initial_pc;  
-reg [31:0] exe_initial_gp;  
-reg [31:0] exe_load_address;
-reg [31:0] exe_file_size;   
-reg [31:0] exe_stackpointer;
-
 always @(posedge clk_1x) begin
 	ramdownload_wr <= 0;
 	if(exe_download | bios_download | cdinfo_download) begin
       if (ioctl_wr) begin
          if(~ioctl_addr[1]) begin
             ramdownload_wrdata[15:0] <= ioctl_dout;
-            if (bios_download)         ramdownload_wraddr  <= {4'd1, 2'b00, ioctl_index[7:6], ioctl_addr[18:0]};
-            else if (exe_download)     ramdownload_wraddr  <= ioctl_addr[22:0] + EXE_START[26:0];                              
+            if (bios_download)         ramdownload_wraddr  <= {6'd1, ioctl_index[7:6], ioctl_addr[18:0]};
+            else if (exe_download)     ramdownload_wraddr  <= ioctl_addr[20:0] + EXE_START[26:0];                              
             else if (cdinfo_download)  ramdownload_wraddr  <= ioctl_addr[26:0];      
          end else begin
             ramdownload_wrdata[31:16] <= ioctl_dout;
@@ -694,15 +645,6 @@ always @(posedge clk_1x) begin
 	end
    exe_download_1  <= exe_download;
    loadExe         <= exe_download_1 & ~exe_download;  
-
-   if (exe_download & ramdownload_wr) begin
-      if (ramdownload_wraddr[22:0] == 'h10) exe_initial_pc     <= ramdownload_wrdata;
-      if (ramdownload_wraddr[22:0] == 'h14) exe_initial_gp     <= ramdownload_wrdata;
-      if (ramdownload_wraddr[22:0] == 'h18) exe_load_address   <= ramdownload_wrdata;
-      if (ramdownload_wraddr[22:0] == 'h1C) exe_file_size      <= ramdownload_wrdata;
-      if (ramdownload_wraddr[22:0] == 'h30) exe_stackpointer   <= ramdownload_wrdata;
-      if (ramdownload_wraddr[22:0] == 'h34) exe_stackpointer   <= exe_stackpointer + ramdownload_wrdata;
-   end
 
    if (loadExe) biosMod <= 1'b1;
      
@@ -926,19 +868,10 @@ reg [9:0] unpause = 0;
 reg status1_1;
 wire isPaused;
 
-reg [20:0] aliveCnt = 0;
-reg heartbeat_1 = 0;
-reg hps_busy = 0;
-
 reg reset = 0;
 
 reg buttonpause_1 = 0;
 reg button_paused = 0;
-
-reg TURBO_MEM;
-reg TURBO_COMP;
-reg TURBO_CACHE;
-reg TURBO_CACHE50;
 
 always @(posedge clk_1x) begin
 
@@ -966,33 +899,11 @@ always @(posedge clk_1x) begin
       unpause <= unpause - 1'd1;
    end
    
-   // pause from heartbeat -> only used for savestate
-   hps_busy    <= 0;
-   heartbeat_1 <= heartbeat;
-   if (heartbeat == heartbeat_1) begin
-      if (aliveCnt[20] == 0) begin
-         aliveCnt <= aliveCnt + 1'b1;
-      end else begin
-         hps_busy <= 1;
-      end
-   end else begin
-      aliveCnt <= 0;
-   end
-   
    // reset
    reset <= 0;
    if (reset_or) begin
       reset    <= 1;
-      aliveCnt <= 0;
    end
-   
-   // 1 => low    -> only MEM
-   // 2 => medium -> MEM + 50% cache
-   // 3 => high   -> everything
-   TURBO_MEM      <= status[80:79] > 0;
-   TURBO_COMP     <= status[80:79] == 2'b11;
-   TURBO_CACHE    <= status[80];
-   TURBO_CACHE50  <= status[80:79] == 2'b10;
 
 end
 
@@ -1009,26 +920,16 @@ psx
    .isPaused(isPaused),
    // commands 
    .pause(paused),
-   .hps_busy(hps_busy),
    .loadExe(loadExe),
-   .exe_initial_pc(exe_initial_pc),
-   .exe_initial_gp(exe_initial_gp), 
-   .exe_load_address(exe_load_address),
-   .exe_file_size(exe_file_size),   
-   .exe_stackpointer(exe_stackpointer),
    .fastboot(status[16]),
-   .ram8mb(status[85]),
-   .TURBO_MEM(TURBO_MEM),
-   .TURBO_COMP(TURBO_COMP),
-   .TURBO_CACHE(TURBO_CACHE),
-   .TURBO_CACHE50(TURBO_CACHE50),
-   .REPRODUCIBLEGPUTIMING(0),
+   .FASTMEM(0),
+   .TURBO(status[58]),
+   .REPRODUCIBLEGPUTIMING(status[19]),
+   .DMABLOCKATONCE(status[26]),
    .INSTANTSEEK(status[21]),
    .FORCECDSPEED(status[77:75]),
    .LIMITREADSPEED(status[78]),
-   .IGNORECDDMATIMING(status[88]),
    .ditherOff(status[22]),
-   .interlaced480pHack(status[89]),
    .showGunCrosshairs(status[9]),
    .fpscountOn(status[28]),
    .cdslowOn(status[59]),
@@ -1038,16 +939,13 @@ psx
    .LBAOn(status[69]),
    .PATCHSERIAL(0), //.PATCHSERIAL(status[54]),
    .noTexture(status[27]),
-   .textureFilter(status[82:81]),
-   .textureFilterStrength(status[87:86]),
-   .textureFilter2DOff(status[83]),
+   .textureFilter(status[5]),
    .dither24(status[73]),
-   .render24(status[84] && ~hack_480p),
    .syncVideoOut(syncVideoOut),
    .syncInterlace(status[60]),
    .rotate180(status[24]),
-   .fixedVBlank(status[55] && ~hack_480p),
-   .vCrop(hack_480p ? 2'b00 : status[4:3]),
+   .fixedVBlank(status[55]),
+   .vCrop(status[4:3]),
    .hCrop(status[67]),
    .SPUon(~status[30]),
    .SPUSDRAM(status[44] & SDRAM2_EN),
@@ -1058,25 +956,19 @@ psx
    .biosregion(biosregion),
    .ram_refresh(sdr_refresh),
    .ram_dataWrite(sdr_sdram_din),
+   .ram_dataRead(sdr_sdram_dout),
    .ram_dataRead32(sdr_sdram_dout32),
    .ram_Adr(sdram_addr),
-   .ram_cntDMA(sdram_cntDMA),
    .ram_be(sdram_be), 
    .ram_rnw(sdram_rnw),  
    .ram_ena(sdram_req), 
-   .ram_dma(sdram_dma), 
-   .ram_cache(sdram_cache), 
+   .ram_128(sdram_128), 
    .ram_done(sdram_ack),
+   .ram_reqprocessed(sdram_reqprocessed),
    .ram_dmafifo_adr  (sdram_dmafifo_adr),  
    .ram_dmafifo_data (sdram_dmafifo_data), 
    .ram_dmafifo_empty(sdram_dmafifo_empty),
    .ram_dmafifo_read (sdram_dmafifo_read),
-   .cache_wr(cache_wr),  
-   .cache_data(cache_data),
-   .cache_addr(cache_addr),
-   .dma_wr(dma_wr),  
-   .dma_reqprocessed(dma_reqprocessed),
-   .dma_data(dma_data),
    // vram/ddr3
    .DDRAM_BUSY      (DDRAM_BUSY      ),
    .DDRAM_BURSTCNT  (DDRAM_BURSTCNT  ),
@@ -1154,10 +1046,7 @@ psx
    .video_g         (g),
    .video_b         (b),
    .video_isPal     (video_isPal),   
-   .video_fbmode    (video_fbmode),   
-   .video_fb24      (video_fb24),   
    .video_hResMode  (video_hResMode),
-   .video_frameindex(frameindex),
    //Keys
    .DSAltSwitchMode(status[31]),
    .PadPortEnable1 (PadPortEnable1),
@@ -1251,7 +1140,7 @@ psx
    .rewind_active         (0), //(status[27] & joy[15]),
    //cheats
    .cheat_clear(gg_reset),
-   .cheats_enabled(~status[6] && ~TURBO_MEM && ~ioctl_download),
+   .cheats_enabled(~status[6] && ~status[58] && ~ioctl_download),
    .cheat_on(gg_valid),
    .cheat_in(gg_code),
    .cheats_active(gg_active),
@@ -1271,30 +1160,25 @@ localparam ROM_START = (65536+131072)*4;
 
 wire         sdr_refresh;
 wire  [31:0] sdr_sdram_din;
+wire [127:0] sdr_sdram_dout;
 wire  [31:0] sdr_sdram_dout32;
+wire [127:0] sdr_sdram_dout2;
 wire  [15:0] sdr_bram_din;
 wire         sdr_sdram_ack;
 wire         sdr_bram_ack;
-wire  [24:0] sdram_addr;
-wire   [1:0] sdram_cntDMA;
+wire  [22:0] sdram_addr;
 wire   [3:0] sdram_be;
 wire         sdram_req;
 wire         sdram_ack;
+wire         sdram_reqprocessed;
 wire         sdram_readack;
 wire         sdram_readack2;
 wire         sdram_writeack;
 wire         sdram_writeack2;
 wire         sdram_rnw;
-wire         sdram_dma;
-wire         sdram_cache;
-wire [ 3:0]  cache_wr;
-wire [31:0]  cache_data;
-wire [ 7:0]  cache_addr;
-wire         dma_wr;
-wire         dma_reqprocessed;
-wire [31:0]  dma_data;
+wire         sdram_128;
 
-wire  [22:0] sdram_dmafifo_adr;  
+wire  [20:0] sdram_dmafifo_adr;  
 wire  [31:0] sdram_dmafifo_data; 
 wire         sdram_dmafifo_empty;
 wire         sdram_dmafifo_read; 
@@ -1314,14 +1198,11 @@ sdram sdram
 (
    .SDRAM_DQ   (SDRAM_DQ),
    .SDRAM_A    (SDRAM_A),
-   .SDRAM_DQML (SDRAM_DQML),
-   .SDRAM_DQMH (SDRAM_DQMH),
    .SDRAM_BA   (SDRAM_BA),
    .SDRAM_nCS  (SDRAM_nCS),
    .SDRAM_nWE  (SDRAM_nWE),
    .SDRAM_nRAS (SDRAM_nRAS),
    .SDRAM_nCAS (SDRAM_nCAS),
-   .SDRAM_CKE  (SDRAM_CKE),
    .SDRAM_CLK  (SDRAM_CLK),
    
    .SDRAM_EN(1),
@@ -1333,20 +1214,13 @@ sdram sdram
 
 	.ch1_addr(sdram_addr),
 	.ch1_din(),
-	.ch1_dout(),
+	.ch1_dout(sdr_sdram_dout),
 	.ch1_dout32(sdr_sdram_dout32),
 	.ch1_req(sdram_req & sdram_rnw),
 	.ch1_rnw(1'b1),
-	.ch1_dma(sdram_dma),
-	.ch1_cntDMA(sdram_cntDMA),
-	.ch1_cache(sdram_cache),
+	.ch1_128(sdram_128),
 	.ch1_ready(sdram_readack),
-	.cache_wr(cache_wr),  
-	.cache_data(cache_data),
-	.cache_addr(cache_addr),
-	.dma_wr(dma_wr),  
-	.dma_reqprocessed(dma_reqprocessed),  
-	.dma_data(dma_data),
+	.ch1_reqprocessed(sdram_reqprocessed),
 
 	.ch2_addr (sdram_addr),
 	.ch2_din  (sdr_sdram_din),
@@ -1378,74 +1252,14 @@ wire        spuram_ena;
 wire [31:0] spuram_dataRead;
 wire        spuram_done;
 
+assign spuram_dataRead = sdr_sdram_dout2[31:0];
 assign spuram_done     = sdram_readack2 | sdram_writeack2;
-
-`ifdef MISTER_DUAL_SDRAM
-
-sdram sdram2
-(
-	.SDRAM_DQ   (SDRAM2_DQ),
-   .SDRAM_A    (SDRAM2_A),
-   .SDRAM_DQML (),
-   .SDRAM_DQMH (),
-   .SDRAM_BA   (SDRAM2_BA),
-   .SDRAM_nCS  (SDRAM2_nCS),
-   .SDRAM_nWE  (SDRAM2_nWE),
-   .SDRAM_nRAS (SDRAM2_nRAS),
-   .SDRAM_nCAS (SDRAM2_nCAS),
-   .SDRAM_CKE  (),
-   .SDRAM_CLK  (SDRAM2_CLK),
-   .SDRAM_EN   (SDRAM2_EN),
-
-	.init(~pll_locked),
-	.clk(clk_3x),
-	.clk_base(clk_1x),
-	
-	.refreshForce(1'b0),
-	.ram_idle(),
-
-	.ch1_addr(spuram_Adr),
-	.ch1_din(),
-	.ch1_dout(),
-	.ch1_dout32(spuram_dataRead),
-	.ch1_req(spuram_ena & spuram_rnw),
-	.ch1_rnw(1'b1),
-	.ch1_dma(1'b0),
-   .ch1_cntDMA(2'b00),
-	.ch1_cache(1'b0),
-	.ch1_ready(sdram_readack2),
-
-	.ch2_addr (spuram_Adr),
-	.ch2_din  (spuram_dataWrite),
-	.ch2_dout (),
-	.ch2_req  (spuram_ena & ~spuram_rnw),
-	.ch2_rnw  (1'b0),
-   .ch2_be   (spuram_be),
-	.ch2_ready(sdram_writeack2),
-
-	.ch3_addr(0),
-	.ch3_din(),
-	.ch3_dout(),
-	.ch3_req(1'b0),
-	.ch3_rnw(1'b1),
-	.ch3_ready(),
-
-	.dmafifo_adr  (0),
-	.dmafifo_data (0),
-	.dmafifo_empty(1'b1),
-	.dmafifo_read ()
-);
-
-`else
 
 wire SDRAM2_EN = 0;
 
-assign spuram_dataRead = '0;
+assign sdr_sdram_dout2 = '0;
 assign sdram_readack2 = '0;
 assign sdram_writeack2 = '0;
-
-`endif
-
 
 assign DDRAM_CLK = clk_2x;
 
@@ -1453,14 +1267,12 @@ assign DDRAM_CLK = clk_2x;
 
 assign CLK_VIDEO = clk_vid;
 
-wire hs, vs, hbl, vbl, video_interlace, video_isPal, video_fbmode, video_fb24;
+wire hs, vs, hbl, vbl, video_interlace, video_isPal;
 
 wire [2:0] video_hResMode;
 
 wire ce_pix;
 wire [7:0] r,g,b;
-
-wire hack_480p = status[89];
 
 typedef struct {
 	logic [7:0] red;
@@ -1576,8 +1388,6 @@ always_ff @(posedge CLK_VIDEO) if (CE_PIXEL) begin
 	video_aspect.blue <= (vbl || hbl) ? 8'd0 : b;
 	{aspect_x, aspect_y} <= video_isPal ? aspect_ratio_lut_pal[v_total] : aspect_ratio_lut_ntsc[v_total];
 
-	VGA_DISABLE <= fast_forward;
-
 	h_pos <= h_pos + 1'd1;
 	if (~old_vb && vbl)
 		vb_pos <= 0;
@@ -1610,7 +1420,7 @@ always_ff @(posedge CLK_VIDEO) if (CE_PIXEL) begin
 		video_aspect.hb <= 0;
 	if (h_pos == hb_end)
 		video_aspect.hb <= 1;
-	if (status[62] || hack_480p || (status[54:53] > 0))
+	if (status[62] || (status[54:53] > 0))
 		video_aspect.hb <= hbl;
 	
 end

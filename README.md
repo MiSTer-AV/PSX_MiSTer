@@ -13,10 +13,8 @@ SDRAM of any size is required.
 * Dithering On/Off Toggle
 * Bob or Weave Deinterlacing
 * Texture Filtering
-* 24 Bit rendering
 * Widescreen modes
 * Screen roation by 180°
-* 8 Mbyte mode(from dev units, mostly for homebrew) 
 * Inputs: DualShock, Digital, Analog, Mouse, NeGcon, Wheel, Justifier and Guncon support.
 * Native Input support through SNAC
 
@@ -63,13 +61,11 @@ HDMI also offers a debugging framebuffer mode with support of full VRAM as 1024x
 
 Analog out from Direct Video is full 24Bit Color, but from Analog Board will only deliver 18 Bits of color.
 You can activate the 24 Bit dithering option to remove color banding in FMVs without decreasing the image quality in 16 bit color ingame.
-Do not use with HDMI or you get artifacts!
 
 Fixed Hblank as well as Fixed Vblank can help delivering correct aspect rations and keeping the screen in sync with e.g. shaking animations.
 Both also offer crop options for games that depend on CRT viewports to hide artifacts at the edge of the image.
 
 Sync 480i for HDMI will make 480i content run with 240p timings, making it easier for HDMI devices to keep the sync when switching between both modes in games. 
-Do not use with VGA/Analog out or you get artifacts!
 
 ## Libcrypt
 
@@ -153,7 +149,7 @@ Memctrl: register stubs only
 SIO    : register stubs only
 
 Timer  : 90%
-- accuracy for dotclock and gates timer not tested
+- accuracy for start/wraparound not tested
 
 GTE    : 90%
 - CPU <-> GTE Transfer pipeline delay not fully correct
@@ -163,4 +159,4 @@ MDEC   : 90%
  
 CD     : 90%
 - accurate CD access model for correct seek times should be added
-- drive and controller logic should be seperated
+- drive and controller logic shozuld be seperated

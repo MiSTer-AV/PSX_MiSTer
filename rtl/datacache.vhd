@@ -17,7 +17,6 @@ entity datacache is
       clk1x             : in  std_logic;
       clk2x             : in  std_logic;
       reset             : in  std_logic;
-      halfrate          : in  std_logic;
                         
       read_enable       : in  std_logic;
       read_addr         : in  std_logic_vector(SIZEBASEBITS-1 downto 0);
@@ -49,10 +48,7 @@ architecture arch of datacache is
    signal memory_datain      : std_logic_vector(BITWIDTH - 1 downto 0) := (others => '0');
    signal memory_dataout     : std_logic_vector(BITWIDTH - 1 downto 0) := (others => '0');
    signal memory_we          : std_logic := '0';
-                
-   signal cache_hit          : std_logic;
-   signal cache_half         : std_logic := '0';
-                
+                             
    -- addr save --  uppermost bit is invalid bit        
    signal addrsave_addr_a    : std_logic_vector(SIZEBITS - 1 downto 0) := (others => '0');
    signal addrsave_addr_b    : std_logic_vector(SIZEBITS - 1 downto 0) := (others => '0');
@@ -74,7 +70,7 @@ begin
    generic map ( addr_width => SIZEBITS, data_width => BITWIDTH)
    port map
    (
-      clock_a     => clk2x,
+      clock_a     => clk1x,
       address_a   => memory_addr_a,
       data_a      => (memory_dataout'range => '0'),
       wren_a      => '0',
@@ -110,9 +106,7 @@ begin
    
    upperbits       <= read_addr(SIZEBASEBITS-1 downto SIZEBITS);
    
-   cache_hit        <= '1' when (addrsave_dataout = '0' & upperbits) else '0';
-   
-   read_hit         <= cache_hit and cache_half;
+   read_hit         <= '1' when (addrsave_dataout = '0' & upperbits) else '0';
    read_data        <= memory_dataout;
    
    -- writing
@@ -127,12 +121,6 @@ begin
    process (clk1x)
    begin
       if rising_edge(clk1x) then
-
-         if (halfrate = '1') then
-            cache_half <= not cache_half;
-         elsif (halfrate = '0') then
-            cache_half <= '1';
-         end if;
 
          if (reset = '1') then
             state          <= CLEARCACHE;

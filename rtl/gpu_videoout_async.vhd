@@ -27,7 +27,6 @@ entity gpu_videoout_async is
       
       videoout_readAddr       : out unsigned(10 downto 0) := (others => '0');
       videoout_pixelRead      : in  std_logic_vector(15 downto 0);
-      videoout_pixelRead2     : in  std_logic_vector(15 downto 0);
       
       overlay_data            : in  std_logic_vector(23 downto 0);
       overlay_ena             : in  std_logic;
@@ -237,10 +236,7 @@ begin
    videoout_reports.dotclock <= videoout_out.ce;
 
    videoout_out.isPal <= videoout_settings.GPUSTAT_PalVideoMode;
-   
-   videoout_out.DisplayWidthReal  <= to_unsigned(xmax, 10);
-   videoout_out.DisplayHeightReal <= to_unsigned(lineMax, 9);
-   
+
    process (clkvid)
       variable mode480i                      : std_logic;
       variable isVsync                       : std_logic;
@@ -707,7 +703,7 @@ begin
                         videoout_out.r      <= (others => '0');
                         videoout_out.g      <= (others => '0');
                         videoout_out.b      <= (others => '0');
-                     elsif (videoout_settings.dither24 = '1' and (videoout_settings.GPUSTAT_ColorDepth24 = '1' or videoout_settings.render24 = '1')) then
+                     elsif (videoout_settings.dither24 = '1' and videoout_settings.GPUSTAT_ColorDepth24 = '1') then
                         videoout_out.r      <= pixelDataDither_R;
                         videoout_out.g      <= pixelDataDither_G;
                         videoout_out.b      <= pixelDataDither_B;                     
@@ -757,21 +753,14 @@ begin
                      when READ16 =>
                         readstate          <= IDLE;
                         readAddrCount      <= readAddrCount + 1;
-                        ditherCE           <= '1';
                         if (rotate180 = '1') then
                            videoout_readAddr  <= videoout_readAddr - 1;
                         else
                            videoout_readAddr  <= videoout_readAddr + 1;
                         end if;
-                        if (videoout_settings.render24 = '1') then
-                           pixelData_R        <= videoout_pixelRead( 4 downto  0) & videoout_pixelRead2(2 downto 0);
-                           pixelData_G        <= videoout_pixelRead( 9 downto  5) & videoout_pixelRead2(5 downto 3);
-                           pixelData_B        <= videoout_pixelRead(14 downto 10) & videoout_pixelRead2(8 downto 6);
-                        else
-                           pixelData_R        <= videoout_pixelRead( 4 downto  0) & videoout_pixelRead( 4 downto 2);
-                           pixelData_G        <= videoout_pixelRead( 9 downto  5) & videoout_pixelRead( 9 downto 7);
-                           pixelData_B        <= videoout_pixelRead(14 downto 10) & videoout_pixelRead(14 downto 12);
-                        end if; 
+                        pixelData_R        <= videoout_pixelRead( 4 downto  0) & videoout_pixelRead( 4 downto 2);
+                        pixelData_G        <= videoout_pixelRead( 9 downto  5) & videoout_pixelRead( 9 downto 7);
+                        pixelData_B        <= videoout_pixelRead(14 downto 10) & videoout_pixelRead(14 downto 12);
                         
                      when READ24_0 =>
                         readstate          <= READ24_16;

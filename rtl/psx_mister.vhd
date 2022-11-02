@@ -17,26 +17,16 @@ entity psx_mister is
       isPaused              : out std_logic;
       -- commands 
       pause                 : in  std_logic;
-      hps_busy              : in  std_logic;
       loadExe               : in  std_logic;
-      exe_initial_pc        : in  unsigned(31 downto 0);
-      exe_initial_gp        : in  unsigned(31 downto 0);
-      exe_load_address      : in  unsigned(31 downto 0);
-      exe_file_size         : in  unsigned(31 downto 0);
-      exe_stackpointer      : in  unsigned(31 downto 0);
       fastboot              : in  std_logic;
-      ram8mb                : in  std_logic;
-      TURBO_MEM             : in  std_logic;
-      TURBO_COMP            : in  std_logic;
-      TURBO_CACHE           : in  std_logic;
-      TURBO_CACHE50         : in  std_logic;
+      FASTMEM               : in  std_logic;
+      TURBO                 : in  std_logic;
       REPRODUCIBLEGPUTIMING : in  std_logic;
+      DMABLOCKATONCE        : in  std_logic;
       INSTANTSEEK           : in  std_logic;
       FORCECDSPEED          : in  std_logic_vector(2 downto 0);
       LIMITREADSPEED        : in  std_logic;
-      IGNORECDDMATIMING     : in  std_logic;
       ditherOff             : in  std_logic;
-      interlaced480pHack    : in  std_logic;
       showGunCrosshairs     : in  std_logic;
       fpscountOn            : in  std_logic;
       cdslowOn              : in  std_logic;
@@ -46,11 +36,8 @@ entity psx_mister is
       LBAOn                 : in  std_logic;
       PATCHSERIAL           : in  std_logic;
       noTexture             : in  std_logic;
-      textureFilter         : in  std_logic_vector(1 downto 0);
-      textureFilterStrength : in  std_logic_vector(1 downto 0);
-      textureFilter2DOff    : in  std_logic;
+      textureFilter         : in  std_logic;
       dither24              : in  std_logic;
-      render24              : in  std_logic;
       syncVideoOut          : in  std_logic;
       syncInterlace         : in  std_logic;
       rotate180             : in  std_logic;
@@ -66,25 +53,19 @@ entity psx_mister is
       biosregion            : in  std_logic_vector(1 downto 0);  
       ram_refresh           : out std_logic;
       ram_dataWrite         : out std_logic_vector(31 downto 0);
+      ram_dataRead          : in  std_logic_vector(127 downto 0);
       ram_dataRead32        : in  std_logic_vector(31 downto 0);
-      ram_Adr               : out std_logic_vector(24 downto 0);
-      ram_cntDMA            : out std_logic_vector(1 downto 0);
+      ram_Adr               : out std_logic_vector(22 downto 0);
       ram_be                : out std_logic_vector(3 downto 0) := (others => '0');
       ram_rnw               : out std_logic;
       ram_ena               : out std_logic;
-      ram_dma               : out std_logic;
-      ram_cache             : out std_logic;
+      ram_128               : out std_logic;
       ram_done              : in  std_logic;
-      ram_dmafifo_adr       : out std_logic_vector(22 downto 0);
+      ram_reqprocessed      : in  std_logic;
+      ram_dmafifo_adr       : out std_logic_vector(20 downto 0);
       ram_dmafifo_data      : out std_logic_vector(31 downto 0);
       ram_dmafifo_empty     : out std_logic;
-      ram_dmafifo_read      : in  std_logic; 
-      cache_wr              : in  std_logic_vector(3 downto 0);
-      cache_data            : in  std_logic_vector(31 downto 0);
-      cache_addr            : in  std_logic_vector(7 downto 0);  
-      dma_wr                : in  std_logic;
-      dma_reqprocessed      : in  std_logic;
-      dma_data              : in  std_logic_vector(31 downto 0);      
+      ram_dmafifo_read      : in  std_logic;    
       -- vram/ddr3 interface
       DDRAM_BUSY            : in  std_logic;                    
       DDRAM_BURSTCNT        : out std_logic_vector(7 downto 0); 
@@ -163,10 +144,7 @@ entity psx_mister is
       video_g               : out std_logic_vector(7 downto 0);
       video_b               : out std_logic_vector(7 downto 0);
       video_isPal           : out std_logic;
-      video_fbmode          : out std_logic;
-      video_fb24            : out std_logic;
       video_hResMode        : out std_logic_vector(2 downto 0);
-      video_frameindex      : out std_logic_vector(3 downto 0);
       -- Keys - all active high   
       DSAltSwitchMode       : in  std_logic;
       PadPortEnable1        : in  std_logic;
@@ -300,26 +278,16 @@ begin
       isPaused              => isPaused, 
       -- commands 
       pause                 => pause,
-      hps_busy              => hps_busy,
       loadExe               => loadExe,
-      exe_initial_pc        => exe_initial_pc,  
-      exe_initial_gp        => exe_initial_gp,  
-      exe_load_address      => exe_load_address,
-      exe_file_size         => exe_file_size,   
-      exe_stackpointer      => exe_stackpointer,
       fastboot              => fastboot,
-      ram8mb                => ram8mb,
-      TURBO_MEM             => TURBO_MEM,
-      TURBO_COMP            => TURBO_COMP,
-      TURBO_CACHE           => TURBO_CACHE,
-      TURBO_CACHE50         => TURBO_CACHE50,
+      FASTMEM               => FASTMEM,
+      TURBO                 => TURBO,
       REPRODUCIBLEGPUTIMING => REPRODUCIBLEGPUTIMING,
+      DMABLOCKATONCE        => DMABLOCKATONCE,
       INSTANTSEEK           => INSTANTSEEK,
       FORCECDSPEED          => FORCECDSPEED,
       LIMITREADSPEED        => LIMITREADSPEED,
-      IGNORECDDMATIMING     => IGNORECDDMATIMING,
       ditherOff             => ditherOff,
-      interlaced480pHack    => interlaced480pHack,
       showGunCrosshairs     => showGunCrosshairs,
       fpscountOn            => fpscountOn,
       cdslowOn              => cdslowOn,
@@ -330,10 +298,7 @@ begin
       PATCHSERIAL           => PATCHSERIAL,
       noTexture             => noTexture,
       textureFilter         => textureFilter,
-      textureFilterStrength => textureFilterStrength,
-      textureFilter2DOff    => textureFilter2DOff,
       dither24              => dither24,
-      render24              => render24,
       syncVideoOut          => syncVideoOut,
       syncInterlace         => syncInterlace,
       rotate180             => rotate180,
@@ -349,25 +314,19 @@ begin
       biosregion            => biosregion,
       ram_refresh           => ram_refresh,
       ram_dataWrite         => ram_dataWrite,
+      ram_dataRead          => ram_dataRead, 
       ram_dataRead32        => ram_dataRead32, 
       ram_Adr               => ram_Adr, 
-      ram_cntDMA            => ram_cntDMA, 
       ram_be                => ram_be,        
       ram_rnw               => ram_rnw,      
       ram_ena               => ram_ena,  
-      ram_dma               => ram_dma,       
-      ram_cache             => ram_cache,       
+      ram_128               => ram_128,       
       ram_done              => ram_done, 
+      ram_reqprocessed      => ram_reqprocessed,   
       ram_dmafifo_adr       => ram_dmafifo_adr, 
       ram_dmafifo_data      => ram_dmafifo_data,
       ram_dmafifo_empty     => ram_dmafifo_empty,
-      ram_dmafifo_read      => ram_dmafifo_read,   
-      cache_wr              => cache_wr,  
-      cache_data            => cache_data,
-      cache_addr            => cache_addr,     
-      dma_wr                => dma_wr,  
-      dma_reqprocessed      => dma_reqprocessed,  
-      dma_data              => dma_data,      
+      ram_dmafifo_read      => ram_dmafifo_read,          
       -- vram interface
       ddr3_BUSY             => DDRAM_BUSY,      
       ddr3_DOUT             => DDRAM_DOUT,      
@@ -446,10 +405,7 @@ begin
       video_g               => video_g, 
       video_b               => video_b, 
       video_isPal           => video_isPal, 
-      video_fbmode          => video_fbmode, 
-      video_fb24            => video_fb24, 
       video_hResMode        => video_hResMode, 
-      video_frameindex      => video_frameindex, 
       -- inputs
       DSAltSwitchMode       => DSAltSwitchMode,
       

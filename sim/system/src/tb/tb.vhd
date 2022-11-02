@@ -74,36 +74,22 @@ architecture arch of etb is
       
    --sdram access 
    signal ram_dataWrite       : std_logic_vector(31 downto 0);
+   signal ram_dataRead        : std_logic_vector(127 downto 0);
    signal ram_dataRead32      : std_logic_vector(31 downto 0);
-   signal ram_Adr             : std_logic_vector(24 downto 0);
-   signal ram_cntDMA          : std_logic_vector(1 downto 0);
+   signal ram_Adr             : std_logic_vector(22 downto 0);
    signal ram_be              : std_logic_vector(3 downto 0);
    signal ram_rnw             : std_logic;
    signal ram_ena             : std_logic;
-   signal ram_dma             : std_logic;
-   signal ram_iscache         : std_logic;
+   signal ram_128             : std_logic;
    signal ram_done            : std_logic;   
+   signal ram_reqprocessed    : std_logic;   
    signal ram_refresh         : std_logic;   
    signal ram_idle            : std_logic;   
    
-   signal cache_wr            : std_logic_vector(3 downto 0);
-   signal cache_data          : std_logic_vector(31 downto 0);
-   signal cache_addr          : std_logic_vector(7 downto 0);
-   
-   signal dma_wr              : std_logic;
-   signal dma_reqprocessed    : std_logic;
-   signal dma_data            : std_logic_vector(31 downto 0);
-   
-   signal ram_dmafifo_adr     : std_logic_vector(22 downto 0);
+   signal ram_dmafifo_adr     : std_logic_vector(20 downto 0);
    signal ram_dmafifo_data    : std_logic_vector(31 downto 0);
    signal ram_dmafifo_empty   : std_logic;
    signal ram_dmafifo_read    : std_logic;
-   
-   signal exe_initial_pc      : unsigned(31 downto 0);
-   signal exe_initial_gp      : unsigned(31 downto 0);
-   signal exe_load_address    : unsigned(31 downto 0);
-   signal exe_file_size       : unsigned(31 downto 0);
-   signal exe_stackpointer    : unsigned(31 downto 0);
    
    -- ddrram
    signal DDRAM_CLK           : std_logic;
@@ -256,26 +242,16 @@ begin
       reset                 => reset,
       -- commands 
       pause                 => pause,
-      hps_busy              => '0',
       loadExe               => psx_LoadExe(0),
-      exe_initial_pc        => exe_initial_pc,  
-      exe_initial_gp        => exe_initial_gp,  
-      exe_load_address      => exe_load_address,
-      exe_file_size         => exe_file_size,   
-      exe_stackpointer      => exe_stackpointer,
       fastboot              => '1',
-      ram8mb                => '0',
-      TURBO_MEM             => '0',
-      TURBO_COMP            => '0',
-      TURBO_CACHE           => '0',
-      TURBO_CACHE50         => '0',
+      FASTMEM               => '0',
+      TURBO                 => '0',
       REPRODUCIBLEGPUTIMING => '0',
+      DMABLOCKATONCE        => '0',
       INSTANTSEEK           => '0',
       FORCECDSPEED          => "000",
       LIMITREADSPEED        => '0',
-      IGNORECDDMATIMING     => '0',
       ditherOff             => '0',
-      interlaced480pHack    => '0',
       showGunCrosshairs     => '0',
       fpscountOn            => '0',
       cdslowOn              => '0',
@@ -285,11 +261,8 @@ begin
       LBAOn                 => '0',
       PATCHSERIAL           => '0',
       noTexture             => '0',
-      textureFilter         => "00",
-      textureFilterStrength => "00",
-      textureFilter2DOff    => '0',
+      textureFilter         => '0',
       dither24              => '0',
-      render24              => '0',
       syncVideoOut          => '0',
       syncInterlace         => '0',
       rotate180             => '0',
@@ -305,25 +278,19 @@ begin
       biosregion            => "00",
       ram_refresh           => ram_refresh,
       ram_dataWrite         => ram_dataWrite,
+      ram_dataRead          => ram_dataRead, 
       ram_dataRead32        => ram_dataRead32, 
       ram_Adr               => ram_Adr,      
-      ram_cntDMA            => ram_cntDMA,      
       ram_be                => ram_be,      
       ram_rnw               => ram_rnw,      
       ram_ena               => ram_ena,      
-      ram_dma               => ram_dma,      
-      ram_cache             => ram_iscache,      
+      ram_128               => ram_128,      
       ram_done              => ram_done,
+      ram_reqprocessed      => ram_reqprocessed,
       ram_dmafifo_adr       => ram_dmafifo_adr, 
       ram_dmafifo_data      => ram_dmafifo_data,
       ram_dmafifo_empty     => ram_dmafifo_empty,
-      ram_dmafifo_read      => ram_dmafifo_read,  
-      cache_wr              => cache_wr,  
-      cache_data            => cache_data,
-      cache_addr            => cache_addr,
-      dma_wr                => dma_wr,  
-      dma_reqprocessed      => dma_reqprocessed,
-      dma_data              => dma_data,
+      ram_dmafifo_read      => ram_dmafifo_read,    
       -- vram/ddr3 interface
       DDRAM_BUSY            => DDRAM_BUSY,      
       DDRAM_BURSTCNT        => DDRAM_BURSTCNT,  
@@ -390,8 +357,7 @@ begin
       video_interlace       => video_interlace,
       video_r               => video_r, 
       video_g               => video_g,    
-      video_b               => video_b, 
-      video_frameindex      => open,
+      video_b               => video_b,   
       -- Keys - all active high
       DSAltSwitchMode       => '0',
       PadPortEnable1        => '1',
@@ -505,41 +471,30 @@ begin
    generic map
    (
       DOREFRESH     => '1',
-      SCRIPTLOADING => '1'
+      SCRIPTLOADING => '1',
+      SLOWWRITE     => '0'
    )
    port map
    (
       clk                  => clk33,
       clk3x                => clk100,
       refresh              => ram_refresh,
-      addr(26 downto 25)   => "00",
-      addr(24 downto  0)   => ram_Adr,
+      addr(26 downto 23)   => "0000",
+      addr(22 downto  0)   =>  ram_Adr,
       req                  => ram_ena,
-      ram_dma              => ram_dma,
-      ram_dmacnt           => ram_cntDMA,
-      ram_iscache          => ram_iscache,
+      ram_128              => ram_128,
       rnw                  => ram_rnw,
       be                   => ram_be,
       di                   => ram_dataWrite,
-      do                   => open,
+      do                   => ram_dataRead,
       do32                 => ram_dataRead32,
       done                 => ram_done,
-      cache_wr             => cache_wr,  
-      cache_data           => cache_data,
-      cache_addr           => cache_addr,
-      dma_wr               => dma_wr,  
-      dma_data             => dma_data,
-      reqprocessed         => dma_reqprocessed,
+      reqprocessed         => ram_reqprocessed,
       ram_idle             => open,
       ram_dmafifo_adr      => ram_dmafifo_adr, 
       ram_dmafifo_data     => ram_dmafifo_data,
       ram_dmafifo_empty    => ram_dmafifo_empty,
-      ram_dmafifo_read     => ram_dmafifo_read,
-      exe_initial_pc       => exe_initial_pc,  
-      exe_initial_gp       => exe_initial_gp,  
-      exe_load_address     => exe_load_address,
-      exe_file_size        => exe_file_size,   
-      exe_stackpointer     => exe_stackpointer    
+      ram_dmafifo_read     => ram_dmafifo_read  
    );
    
    ispu_ram : entity work.sdram_model3x 
@@ -556,11 +511,9 @@ begin
       clk3x                => clk100,
       refresh              => '0',
       addr(26 downto 19)   => "00000000",
-      addr(18 downto  0)   => spuram_Adr,
+      addr(18 downto  0)   =>  spuram_Adr,
       req                  => spuram_ena,
-      ram_dma              => '0',
-      ram_dmacnt           => "00",
-      ram_iscache          => '0',
+      ram_128              => '0',
       rnw                  => spuram_rnw,
       be                   => spuram_be,
       di                   => spuram_dataWrite,
@@ -569,7 +522,7 @@ begin
       done                 => spuram_done,
       reqprocessed         => open,
       ram_idle             => open,
-      ram_dmafifo_adr      => (22 downto 0 => '0'),
+      ram_dmafifo_adr      => (20 downto 0 => '0'),
       ram_dmafifo_data     => (31 downto 0 => '0'),
       ram_dmafifo_empty    => '1'
    );
